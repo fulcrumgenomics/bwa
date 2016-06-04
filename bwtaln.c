@@ -8,6 +8,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "bwase.h"
 #include "bwtaln.h"
 #include "bwtgap.h"
 #include "utils.h"
@@ -36,6 +37,9 @@ gap_opt_t *gap_init_opt()
 	o->n_threads = 1;
 	o->max_top2 = 30;
 	o->trim_qual = 0;
+	o->sam = 0;
+	o->rg_line = NULL;
+	o->n_occ = 3;
 	return o;
 }
 
@@ -117,9 +121,16 @@ void bwa_cal_sa_reg_gap(int tid, bwt_t *const bwt, int n_seqs, bwa_seq_t *seqs, 
 			p->seq[j] = p->seq[j] > 3? 4 : 3 - p->seq[j];
 		p->aln = bwt_match_gap(bwt, p->len, p->seq, w, p->len <= opt->seed_len? 0 : seed_w, &local_opt, &p->n_aln, stack);
 		//fprintf(stderr, "mm=%lld,ins=%lld,del=%lld,gapo=%lld\n", p->aln->n_mm, p->aln->n_ins, p->aln->n_del, p->aln->n_gapo);
-		// clean up the unused data in the record
-		free(p->name); free(p->seq); free(p->rseq); free(p->qual);
-		p->name = 0; p->seq = p->rseq = p->qual = 0;
+		if (!opt->sam) {
+			// clean up the unused data in the record
+			free(p->name); free(p->seq); free(p->rseq); free(p->qual);
+			p->name = 0; p->seq = p->rseq = p->qual = 0;
+		}
+		else {
+			// complement it back
+			for (j = 0; j < p->len; ++j) // we need to complement
+				p->seq[j] = p->seq[j] > 3? 4 : 3 - p->seq[j];
+		}
 	}
 	free(seed_w); free(w);
 	gap_destroy_stack(stack);
@@ -163,6 +174,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 	bwa_seqio_t *ks;
 	clock_t t;
 	bwt_t *bwt;
+	bntseq_t *bns = NULL;
 
 	// initialization
 	ks = bwa_open_reads(opt->mode, fn_fa);
@@ -173,9 +185,17 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 		free(str);
 	}
 
+	if (opt->sam) {
+		bns = bns_restore(prefix);
+		srand48(bns->seed);
+		bwa_print_sam_hdr(bns, opt->rg_line);
+	}
+
 	// core loop
-	err_fwrite(SAI_MAGIC, 1, 4, stdout);
-	err_fwrite(opt, sizeof(gap_opt_t), 1, stdout);
+	if (!opt->sam) {
+		err_fwrite(SAI_MAGIC, 1, 4, stdout);
+		err_fwrite(opt, sizeof(gap_opt_t), 1, stdout);
+	}
 	while ((seqs = bwa_read_seq(ks, 0x40000, &n_seqs, opt->mode, opt->trim_qual)) != 0) {
 		tot_seqs += n_seqs;
 		t = clock();
@@ -207,15 +227,37 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 #endif
 
 		fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
-
+	
 		t = clock();
-		fprintf(stderr, "[bwa_aln_core] write to the disk... ");
-		for (i = 0; i < n_seqs; ++i) {
-			bwa_seq_t *p = seqs + i;
-			err_fwrite(&p->n_aln, 4, 1, stdout);
-			if (p->n_aln) err_fwrite(p->aln, sizeof(bwt_aln1_t), p->n_aln, stdout);
+		if (opt->sam) {
+			// read alignment
+			for (i = 0; i < n_seqs; ++i) {
+				bwa_seq_t *p = seqs + i;
+				bwa_aln2seq_core(p->n_aln, p->aln, p, 1, opt->n_occ);
+			}
+
+			fprintf(stderr, "[bwa_aln_core] convert to sequence coordinate... ");
+			bwa_cal_pac_pos(bns, prefix, n_seqs, seqs, opt->max_diff, opt->fnr); // forward bwt will be destroyed here
+			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC); t = clock();
+
+			fprintf(stderr, "[bwa_aln_core] refine gapped alignments... ");
+			bwa_refine_gapped(bns, n_seqs, seqs, 0);
+			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC); t = clock();
+
+			fprintf(stderr, "[bwa_aln_core] print alignments... ");
+			for (i = 0; i < n_seqs; ++i)
+				bwa_print_sam1(bns, seqs + i, 0, opt->mode, opt->max_top2);
+			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
 		}
-		fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
+		else {
+			fprintf(stderr, "[bwa_aln_core] write to the disk... ");
+			for (i = 0; i < n_seqs; ++i) {
+				bwa_seq_t *p = seqs + i;
+				err_fwrite(&p->n_aln, 4, 1, stdout);
+				if (p->n_aln) err_fwrite(p->aln, sizeof(bwt_aln1_t), p->n_aln, stdout);
+			}
+			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
+		}
 
 		bwa_free_read_seq(n_seqs, seqs);
 		fprintf(stderr, "[bwa_aln_core] %d sequences have been processed.\n", tot_seqs);
@@ -224,6 +266,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 	// destroy
 	bwt_destroy(bwt);
 	bwa_seq_close(ks);
+	if (NULL != bns) bns_destroy(bns);
 }
 
 int bwa_aln(int argc, char *argv[])
@@ -233,7 +276,7 @@ int bwa_aln(int argc, char *argv[])
 	char *prefix;
 
 	opt = gap_init_opt();
-	while ((c = getopt(argc, argv, "n:o:e:i:d:l:k:LR:m:t:NM:O:E:q:f:b012IYB:")) >= 0) {
+	while ((c = getopt(argc, argv, "n:o:e:i:d:l:k:LR:m:t:NM:O:E:q:f:b012IYB:Sr:X:")) >= 0) {
 		switch (c) {
 		case 'n':
 			if (strstr(optarg, ".")) opt->fnr = atof(optarg), opt->max_diff = -1;
@@ -262,6 +305,11 @@ int bwa_aln(int argc, char *argv[])
 		case 'I': opt->mode |= BWA_MODE_IL13; break;
 		case 'Y': opt->mode |= BWA_MODE_CFY; break;
 		case 'B': opt->mode |= atoi(optarg) << 24; break;
+		case 'S': opt->sam = 1; break;
+		case 'r':
+			if ((opt->rg_line = bwa_set_rg(optarg)) == 0) return 1;
+			break;
+		case 'X': opt->n_occ = atoi(optarg); break;
 		default: return 1;
 		}
 	}
@@ -298,6 +346,10 @@ int bwa_aln(int argc, char *argv[])
 		fprintf(stderr, "         -1        use the 1st read in a pair (effective with -b)\n");
 		fprintf(stderr, "         -2        use the 2nd read in a pair (effective with -b)\n");
 		fprintf(stderr, "         -Y        filter Casava-filtered sequences\n");
+		fprintf(stderr, "Options for SAM output (bwase SE mode):\n");
+		fprintf(stderr, "         -S        output SAM (run samse)\n");
+		fprintf(stderr, "         -r STR    read group line for SAM output\n");
+		fprintf(stderr, "         -X INT    maximum # of hits to report (SAM output only, equivalent to -n in samse)\n");
 		fprintf(stderr, "\n");
 		return 1;
 	}

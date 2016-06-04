@@ -76,6 +76,7 @@ typedef struct {
 	// multiple hits
 	int n_multi;
 	bwt_multi1_t *multi;
+        int n_occ; 
 	// alignment information
 	bwtint_t sa, pos;
 	uint64_t c1:28, c2:28, seQ:8; // number of top1 and top2 hits; single-end mapQ
@@ -112,6 +113,9 @@ typedef struct {
 	int n_threads;
 	int max_top2;
 	int trim_qual;
+        int sam;
+        char *rg_line;
+        int n_occ;
 } gap_opt_t;
 
 #define BWA_PET_STD   1
