@@ -143,12 +143,19 @@ void bwa_cal_pac_pos_core(const bntseq_t *bns, const bwt_t *bwt, bwa_seq_t *seq,
 
 void bwa_cal_pac_pos(const bntseq_t *bns, const char *prefix, int n_seqs, bwa_seq_t *seqs, int max_mm, float fnr)
 {
-	int i, j, strand, n_multi;
+	bwa_cal_pac_pos_with_bwt(bns, prefix, n_seqs, seqs, max_mm, fnr, NULL);
+}
+
+void bwa_cal_pac_pos_with_bwt(const bntseq_t *bns, const char *prefix, int n_seqs, bwa_seq_t *seqs, int max_mm, float fnr, bwt_t *bwt)
+{
+	int i, j, strand, n_multi, bwt_preloaded=1;
 	char str[1024];
-	bwt_t *bwt;
 	// load forward SA
-	strcpy(str, prefix); strcat(str, ".bwt");  bwt = bwt_restore_bwt(str);
-	strcpy(str, prefix); strcat(str, ".sa"); bwt_restore_sa(str, bwt);
+	if (NULL == bwt) {
+		strcpy(str, prefix); strcat(str, ".bwt");  bwt = bwt_restore_bwt(str);
+		strcpy(str, prefix); strcat(str, ".sa"); bwt_restore_sa(str, bwt);
+		bwt_preloaded = 0;
+	}
 	for (i = 0; i != n_seqs; ++i) {
 		bwa_seq_t *p = &seqs[i];
 		bwa_cal_pac_pos_core(bns, bwt, p, max_mm, fnr);
@@ -161,7 +168,7 @@ void bwa_cal_pac_pos(const bntseq_t *bns, const char *prefix, int n_seqs, bwa_se
 		}
 		p->n_multi = n_multi;
 	}
-	bwt_destroy(bwt);
+	if (!bwt_preloaded) bwt_destroy(bwt);
 }
 
 #define SW_BW 50

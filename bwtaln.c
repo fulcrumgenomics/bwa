@@ -186,8 +186,11 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 	}
 
 	if (opt->sam) {
+		char *str = (char*)calloc(strlen(prefix) + 10, 1);
 		bns = bns_restore(prefix);
 		srand48(bns->seed);
+		strcpy(str, prefix); strcat(str, ".sa"); bwt_restore_sa(str, bwt);
+		free(str);
 		bwa_print_sam_hdr(bns, opt->rg_line);
 	}
 
@@ -237,7 +240,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 			}
 
 			fprintf(stderr, "[bwa_aln_core] convert to sequence coordinate... ");
-			bwa_cal_pac_pos(bns, prefix, n_seqs, seqs, opt->max_diff, opt->fnr); // forward bwt will be destroyed here
+			bwa_cal_pac_pos_with_bwt(bns, prefix, n_seqs, seqs, opt->max_diff, opt->fnr, bwt); 
 			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC); t = clock();
 
 			fprintf(stderr, "[bwa_aln_core] refine gapped alignments... ");
