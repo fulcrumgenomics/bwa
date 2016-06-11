@@ -187,7 +187,7 @@ typedef struct __kstring_t {
 			if (ignore_empty_lines) while ((c = ks_getc(ks)) != -1 && c != '>' && c != '@'); \
 			else { \
 				while ((c = ks_getc(ks)) != -1 && c != '>' && c != '@') { \
-					if (c == '\n') return -3; \
+					if (c == '\n') { seq->last_char = 0; return -3; } \
 				} \
 			} \
 			if (c == -1) return -1; /* end of file */ \

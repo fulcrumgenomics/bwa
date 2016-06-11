@@ -179,7 +179,17 @@ bwa_seq_t *bwa_read_seq2(bwa_seqio_t *bs, int n_needed, int *n, int mode, int tr
 	if (bs->is_bam) return bwa_read_bam(bs, n_needed, n, is_comp, trim_qual); // l_bc has no effect for BAM input
 	n_seqs = 0;
 	seqs = (bwa_seq_t*)calloc(n_needed, sizeof(bwa_seq_t));
-	while ((l = kseq_read2(seq, !interactive_mode)) >= 0) {
+	for (;;) {
+		// Reading in one-sequence at a time.
+		// - in interactive mode, keep reading until we have read at least one sequence and then stop after the first blank line.
+		// - in non-interactive mode, read up to the number of sequences needed or the end-of-file.
+		l = kseq_read2(seq, !interactive_mode); // read it in
+		if (interactive_mode && l == -3) { // -3 is an empty line
+			if (n_seqs == 0) continue; // need more, skip the empty line
+			else break; // we have at least one read, so return the reads before the first emtpy line.
+		}
+		else if (l < 0) break; // did we get a read?
+
 		if ((mode & BWA_MODE_CFY) && (seq->comment.l != 0)) {
 			// skip reads that are marked to be filtered by Casava
 			char *s = index(seq->comment.s, ':');
