@@ -38,13 +38,25 @@ bwa_seqio_t *bwa_bam_open(const char *fn, int which)
 
 bwa_seqio_t *bwa_seq_open(const char *fn)
 {
+	return bwa_seq_open2(fn, -1);
+}
+
+bwa_seqio_t *bwa_seq_open2(const char *fn, int bufsize)
+{
 	gzFile fp;
 	bwa_seqio_t *bs;
 	bs = (bwa_seqio_t*)calloc(1, sizeof(bwa_seqio_t));
-	fp = xzopen(fn, "r");
-	bs->ks = kseq_init(fp);
+	if (0 < bufsize) {
+		fp = xzopen2(fn, "r", bufsize);
+		bs->ks = kseq_init2(fp, bufsize);
+	}
+	else {
+		fp = xzopen(fn, "r");
+		bs->ks = kseq_init(fp);
+	}
 	return bs;
 }
+
 
 void bwa_seq_close(bwa_seqio_t *bs)
 {
@@ -150,6 +162,11 @@ static bwa_seq_t *bwa_read_bam(bwa_seqio_t *bs, int n_needed, int *n, int is_com
 
 bwa_seq_t *bwa_read_seq(bwa_seqio_t *bs, int n_needed, int *n, int mode, int trim_qual)
 {
+	return bwa_read_seq2(bs, n_needed, n, mode, trim_qual, 0);
+}
+
+bwa_seq_t *bwa_read_seq2(bwa_seqio_t *bs, int n_needed, int *n, int mode, int trim_qual, int interactive_mode)
+{
 	bwa_seq_t *seqs, *p;
 	kseq_t *seq = bs->ks;
 	int n_seqs, l, i, is_comp = mode&BWA_MODE_COMPREAD, is_64 = mode&BWA_MODE_IL13, l_bc = mode>>24;
@@ -162,7 +179,7 @@ bwa_seq_t *bwa_read_seq(bwa_seqio_t *bs, int n_needed, int *n, int mode, int tri
 	if (bs->is_bam) return bwa_read_bam(bs, n_needed, n, is_comp, trim_qual); // l_bc has no effect for BAM input
 	n_seqs = 0;
 	seqs = (bwa_seq_t*)calloc(n_needed, sizeof(bwa_seq_t));
-	while ((l = kseq_read(seq)) >= 0) {
+	while ((l = kseq_read2(seq, !interactive_mode)) >= 0) {
 		if ((mode & BWA_MODE_CFY) && (seq->comment.l != 0)) {
 			// skip reads that are marked to be filtered by Casava
 			char *s = index(seq->comment.s, ':');

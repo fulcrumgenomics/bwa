@@ -116,6 +116,7 @@ typedef struct {
         int sam;
         char *rg_line;
         int n_occ;
+        int interactive_mode;
 } gap_opt_t;
 
 #define BWA_PET_STD   1
@@ -139,10 +140,12 @@ extern "C" {
 	void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt);
 
 	bwa_seqio_t *bwa_seq_open(const char *fn);
+	bwa_seqio_t *bwa_seq_open2(const char *fn, int bufsize);
 	bwa_seqio_t *bwa_bam_open(const char *fn, int which);
 	void bwa_seq_close(bwa_seqio_t *bs);
 	void seq_reverse(int len, ubyte_t *seq, int is_comp);
 	bwa_seq_t *bwa_read_seq(bwa_seqio_t *seq, int n_needed, int *n, int mode, int trim_qual);
+        bwa_seq_t *bwa_read_seq2(bwa_seqio_t *bs, int n_needed, int *n, int mode, int trim_qual, int interactive_mode);
 	void bwa_free_read_seq(int n_seqs, bwa_seq_t *seqs);
 
 	int bwa_cal_maxdiff(int l, double err, double thres);

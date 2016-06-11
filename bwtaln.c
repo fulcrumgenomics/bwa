@@ -38,6 +38,7 @@ gap_opt_t *gap_init_opt()
 	o->max_top2 = 30;
 	o->trim_qual = 0;
 	o->sam = 0;
+	o->interactive_mode = 0;
 	o->rg_line = NULL;
 	o->n_occ = 3;
 	return o;
@@ -153,7 +154,7 @@ static void *worker(void *data)
 }
 #endif
 
-bwa_seqio_t *bwa_open_reads(int mode, const char *fn_fa)
+bwa_seqio_t *bwa_open_reads(int mode, int interactive_mode, const char *fn_fa)
 {
 	bwa_seqio_t *ks;
 	if (mode & BWA_MODE_BAM) { // open BAM
@@ -163,7 +164,7 @@ bwa_seqio_t *bwa_open_reads(int mode, const char *fn_fa)
 		if (mode & BWA_MODE_BAM_READ2) which |= 2;
 		if (which == 0) which = 7; // then read all reads
 		ks = bwa_bam_open(fn_fa, which);
-	} else ks = bwa_seq_open(fn_fa);
+	} else ks = bwa_seq_open2(fn_fa, interactive_mode ? 1 : -1);
 	return ks;
 }
 
@@ -177,7 +178,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 	bntseq_t *bns = NULL;
 
 	// initialization
-	ks = bwa_open_reads(opt->mode, fn_fa);
+	ks = bwa_open_reads(opt->mode, opt->interactive_mode, fn_fa);
 
 	{ // load BWT
 		char *str = (char*)calloc(strlen(prefix) + 10, 1);
@@ -199,7 +200,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 		err_fwrite(SAI_MAGIC, 1, 4, stdout);
 		err_fwrite(opt, sizeof(gap_opt_t), 1, stdout);
 	}
-	while ((seqs = bwa_read_seq(ks, 0x40000, &n_seqs, opt->mode, opt->trim_qual)) != 0) {
+	while ((seqs = bwa_read_seq2(ks, 0x40000, &n_seqs, opt->mode, opt->trim_qual, opt->interactive_mode)) != 0) {
 		tot_seqs += n_seqs;
 		t = clock();
 
@@ -279,7 +280,7 @@ int bwa_aln(int argc, char *argv[])
 	char *prefix;
 
 	opt = gap_init_opt();
-	while ((c = getopt(argc, argv, "n:o:e:i:d:l:k:LR:m:t:NM:O:E:q:f:b012IYB:Sr:X:")) >= 0) {
+	while ((c = getopt(argc, argv, "n:o:e:i:d:l:k:LR:m:t:NM:O:E:q:f:b012IYB:Sr:X:Z")) >= 0) {
 		switch (c) {
 		case 'n':
 			if (strstr(optarg, ".")) opt->fnr = atof(optarg), opt->max_diff = -1;
@@ -313,6 +314,7 @@ int bwa_aln(int argc, char *argv[])
 			if ((opt->rg_line = bwa_set_rg(optarg)) == 0) return 1;
 			break;
 		case 'X': opt->n_occ = atoi(optarg); break;
+		case 'Z': opt->interactive_mode = 1; break;
 		default: return 1;
 		}
 	}
@@ -353,6 +355,7 @@ int bwa_aln(int argc, char *argv[])
 		fprintf(stderr, "         -S        output SAM (run samse)\n");
 		fprintf(stderr, "         -r STR    read group line for SAM output\n");
 		fprintf(stderr, "         -X INT    maximum # of hits to report (SAM output only, equivalent to -n in samse)\n");
+		fprintf(stderr, "         -Z        interactive mode (no input buffer and empty lines between records force processing)\n");
 		fprintf(stderr, "\n");
 		return 1;
 	}

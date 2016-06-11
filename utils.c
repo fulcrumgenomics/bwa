@@ -74,6 +74,11 @@ FILE *err_xreopen_core(const char *func, const char *fn, const char *mode, FILE 
 
 gzFile err_xzopen_core(const char *func, const char *fn, const char *mode)
 {
+	return err_xzopen_core2(func, fn, mode, -1);
+}
+
+gzFile err_xzopen_core2(const char *func, const char *fn, const char *mode, int bufsize)
+{
 	gzFile fp;
 	if (strcmp(fn, "-") == 0) {
 		fp = gzdopen(fileno((strstr(mode, "r"))? stdin : stdout), mode);
@@ -83,6 +88,9 @@ gzFile err_xzopen_core(const char *func, const char *fn, const char *mode)
 	}
 	if ((fp = gzopen(fn, mode)) == 0) {
 		err_fatal(func, "fail to open file '%s' : %s", fn, errno ? strerror(errno) : "Out of memory");
+	}
+	if (0 < bufsize && gzbuffer(fp, bufsize) != 0) {
+		err_fatal(func, "fail to modify buffer size for file '%s' : %d", fn, bufsize);
 	}
 	return fp;
 }

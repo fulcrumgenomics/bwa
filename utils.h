@@ -45,6 +45,7 @@
 #define xopen(fn, mode) err_xopen_core(__func__, fn, mode)
 #define xreopen(fn, mode, fp) err_xreopen_core(__func__, fn, mode, fp)
 #define xzopen(fn, mode) err_xzopen_core(__func__, fn, mode)
+#define xzopen2(fn, mode, bufsize) err_xzopen_core2(__func__, fn, mode, bufsize)
 
 #define xassert(cond, msg) if ((cond) == 0) _err_fatal_simple_core(__func__, msg)
 
@@ -66,6 +67,7 @@ extern "C" {
 	FILE *err_xopen_core(const char *func, const char *fn, const char *mode);
 	FILE *err_xreopen_core(const char *func, const char *fn, const char *mode, FILE *fp);
 	gzFile err_xzopen_core(const char *func, const char *fn, const char *mode);
+	gzFile err_xzopen_core2(const char *func, const char *fn, const char *mode, int bufsize);
     size_t err_fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 	size_t err_fread_noeof(void *ptr, size_t size, size_t nmemb, FILE *stream);
 
