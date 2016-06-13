@@ -84,9 +84,8 @@ gzFile err_xzopen_core2(const char *func, const char *fn, const char *mode, int 
 		fp = gzdopen(fileno((strstr(mode, "r"))? stdin : stdout), mode);
 		/* According to zlib.h, this is the only reason gzdopen can fail */
 		if (!fp) err_fatal(func, "Out of memory");
-		return fp;
 	}
-	if ((fp = gzopen(fn, mode)) == 0) {
+	else if ((fp = gzopen(fn, mode)) == 0) {
 		err_fatal(func, "fail to open file '%s' : %s", fn, errno ? strerror(errno) : "Out of memory");
 	}
 	if (0 < bufsize && gzbuffer(fp, bufsize) != 0) {

@@ -193,6 +193,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 		strcpy(str, prefix); strcat(str, ".sa"); bwt_restore_sa(str, bwt);
 		free(str);
 		bwa_print_sam_hdr(bns, opt->rg_line);
+		fflush(stdout);
 	}
 
 	// core loop
@@ -251,6 +252,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 			fprintf(stderr, "[bwa_aln_core] print alignments... ");
 			for (i = 0; i < n_seqs; ++i)
 				bwa_print_sam1(bns, seqs + i, 0, opt->mode, opt->max_top2);
+			fflush(stdout);
 			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
 		}
 		else {
