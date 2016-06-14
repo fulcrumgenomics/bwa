@@ -37,10 +37,11 @@ gap_opt_t *gap_init_opt()
 	o->n_threads = 1;
 	o->max_top2 = 30;
 	o->trim_qual = 0;
-	o->sam = 0;
-	o->interactive_mode = 0;
-	o->rg_line = NULL;
 	o->n_occ = 3;
+	o->sam = 0;
+	o->rg_line = NULL;
+	o->interactive_mode = 0;
+	o->with_md = 0;
 	return o;
 }
 
@@ -246,7 +247,7 @@ void bwa_aln_core(const char *prefix, const char *fn_fa, const gap_opt_t *opt)
 			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC); t = clock();
 
 			fprintf(stderr, "[bwa_aln_core] refine gapped alignments... ");
-			bwa_refine_gapped(bns, n_seqs, seqs, 0);
+			bwa_refine_gapped2(bns, n_seqs, seqs, 0, opt->with_md);
 			fprintf(stderr, "%.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC); t = clock();
 
 			fprintf(stderr, "[bwa_aln_core] print alignments... ");
@@ -282,7 +283,7 @@ int bwa_aln(int argc, char *argv[])
 	char *prefix;
 
 	opt = gap_init_opt();
-	while ((c = getopt(argc, argv, "n:o:e:i:d:l:k:LR:m:t:NM:O:E:q:f:b012IYB:Sr:X:Z")) >= 0) {
+	while ((c = getopt(argc, argv, "n:o:e:i:d:l:k:LR:m:t:NM:O:E:q:f:b012IYB:Sr:X:ZD")) >= 0) {
 		switch (c) {
 		case 'n':
 			if (strstr(optarg, ".")) opt->fnr = atof(optarg), opt->max_diff = -1;
@@ -317,6 +318,7 @@ int bwa_aln(int argc, char *argv[])
 			break;
 		case 'X': opt->n_occ = atoi(optarg); break;
 		case 'Z': opt->interactive_mode = 1; break;
+		case 'D': opt->with_md = 1; break;
 		default: return 1;
 		}
 	}
@@ -358,6 +360,7 @@ int bwa_aln(int argc, char *argv[])
 		fprintf(stderr, "         -r STR    read group line for SAM output\n");
 		fprintf(stderr, "         -X INT    maximum # of hits to report (SAM output only, equivalent to -n in samse)\n");
 		fprintf(stderr, "         -Z        interactive mode (no input buffer and empty lines between records force processing)\n");
+		fprintf(stderr, "         -D        output the MD to each alignment in the XA tag, otherwise use \".\"\n");
 		fprintf(stderr, "\n");
 		return 1;
 	}

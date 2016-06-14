@@ -61,6 +61,7 @@ typedef struct {
 	int ref_shift;
 	bwtint_t pos;
 	bwa_cigar_t *cigar;
+	char *md;
 } bwt_multi1_t;
 
 typedef struct {
@@ -117,6 +118,7 @@ typedef struct {
         char *rg_line;
         int n_occ;
         int interactive_mode;
+        int with_md;
 } gap_opt_t;
 
 #define BWA_PET_STD   1
